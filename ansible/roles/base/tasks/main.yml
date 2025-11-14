@@ -1,0 +1,18 @@
+- name: Set hostname
+  hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Add user 'demo'
+  user:
+    name: demo
+    state: present
+    groups: wheel
+
+- name: Install packages
+  yum:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - vim
+    - git
+    - wget
