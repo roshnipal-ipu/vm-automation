@@ -1,42 +1,98 @@
 pipeline {
-  agent any
-  stages {
-    stage('Terraform Init') {
-      steps {
-        dir('terraform') {
-          sh 'terraform init'
-        }
-      }
+    agent any
+
+    parameters {
+        booleanParam(name: 'DESTROY', defaultValue: false, description: 'Destroy VMs after provisioning?')
     }
-    stage('Terraform Apply') {
-      steps {
-        dir('terraform') {
-          sh 'terraform apply -auto-approve'
-        }
-      }
+
+    environment {
+        VSPHERE_USER = credentials('vsphere-user')       // Jenkins credential ID for vSphere username
+        VSPHERE_PASSWORD = credentials('vsphere-pass')   // Jenkins credential ID for vSphere password
+        SSH_KEY = credentials('github-ssh-key')          // Jenkins credential ID for GitHub SSH key
     }
-    stage('Run Ansible') {
-      steps {
-        sh 'terraform output -json > tf_output.json'
-        script {
-          def ips = sh(script: "jq -r '.vm_ips.value[]' tf_output.json", returnStdout: true).trim().split()
-          writeFile file: 'ansible/inventory.ini', text: "[all]\n" + ips.collect { it + " ansible_user=root ansible_ssh_private_key_file=~/.ssh/id_rsa_jenkins" }.join("\n")
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'git@github.com:roshnipal-ipu/vm-automation.git'
+            }
         }
-        sh 'ansible-playbook -i ansible/inventory.ini ansible/playbook.yml'
-      }
-    }
-    stage('Terraform Destroy') {
-      when {
-        expression { return params.DESTROY == true }
-      }
-      steps {
-        dir('terraform') {
-          sh 'terraform destroy -auto-approve'
+
+        stage('Terraform Init') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform init'
+                    sh 'terraform validate'
+                }
+            }
         }
-      }
+
+        stage('Terraform Apply') {
+            when {
+                expression { return params.DESTROY == false }
+            }
+            steps {
+                dir('terraform') {
+                    sh '''
+                    export TF_VAR_vsphere_user=$VSPHERE_USER
+                    export TF_VAR_vsphere_password=$VSPHERE_PASSWORD
+                    terraform apply -auto-approve
+                    '''
+                }
+            }
+        }
+
+        stage('Generate Ansible Inventory') {
+            when {
+                expression { return params.DESTROY == false }
+            }
+            steps {
+                sh 'terraform output -json > tf_output.json'
+                script {
+                    def ips = sh(script: "jq -r '.vm_ips.value[]' tf_output.json", returnStdout: true).trim().split('\\n')
+                    def inventoryContent = "[all]\\n" + ips.collect { it + " ansible_user=root ansible_ssh_private_key_file=/var/lib/jenkins/.ssh/id_rsa" }.join("\\n")
+                    writeFile file: 'ansible/inventory.ini', text: inventoryContent
+                }
+            }
+        }
+
+        stage('Run Ansible') {
+            when {
+                expression { return params.DESTROY == false }
+            }
+            steps {
+                sh 'ansible-playbook -i ansible/inventory.ini ansible/playbook.yml'
+            }
+        }
+
+        stage('Terraform Destroy') {
+            when {
+                expression { return params.DESTROY == true }
+            }
+            steps {
+                dir('terraform') {
+                    sh '''
+                    export TF_VAR_vsphere_user=$VSPHERE_USER
+                    export TF_VAR_vsphere_password=$VSPHERE_PASSWORD
+                    terraform destroy -auto-approve
+                    '''
+                }
+            }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                archiveArtifacts artifacts: 'terraform/*.tfstate, tf_output.json, ansible/inventory.ini', fingerprint: true
+            }
+        }
     }
-  }
-  parameters {
-    booleanParam(name: 'DESTROY', defaultValue: false, description: 'Destroy VMs?')
-  }
+
+    post {
+        success {
+            echo '✅ Pipeline completed successfully.'
+        }
+        failure {
+            echo '❌ Pipeline failed. Check logs for details.'
+        }
+    }
 }
