@@ -6,9 +6,7 @@ pipeline {
     }
 
     environment {
-        VSPHERE_USER = credentials('vsphere-user')       // Jenkins credential ID for vSphere username
-        VSPHERE_PASSWORD = credentials('vsphere-pass')   // Jenkins credential ID for vSphere password
-        SSH_KEY = credentials('github-ssh-key')          // Jenkins credential ID for GitHub SSH key
+        SSH_KEY = credentials('github-ssh-key') // For GitHub SSH
     }
 
     stages {
@@ -20,9 +18,15 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                dir('terraform') {
-                    sh 'terraform init'
-                    sh 'terraform validate'
+                withCredentials([usernamePassword(credentialsId: 'vsphere-creds', usernameVariable: 'VSPHERE_USER', passwordVariable: 'VSPHERE_PASS')]) {
+                    dir('terraform') {
+                        sh '''
+                        export TF_VAR_vsphere_user=$VSPHERE_USER
+                        export TF_VAR_vsphere_password=$VSPHERE_PASS
+                        terraform init
+                        terraform validate
+                        '''
+                    }
                 }
             }
         }
@@ -32,12 +36,14 @@ pipeline {
                 expression { return params.DESTROY == false }
             }
             steps {
-                dir('terraform') {
-                    sh '''
-                    export TF_VAR_vsphere_user=$VSPHERE_USER
-                    export TF_VAR_vsphere_password=$VSPHERE_PASSWORD
-                    terraform apply -auto-approve
-                    '''
+                withCredentials([usernamePassword(credentialsId: 'vsphere-creds', usernameVariable: 'VSPHERE_USER', passwordVariable: 'VSPHERE_PASS')]) {
+                    dir('terraform') {
+                        sh '''
+                        export TF_VAR_vsphere_user=$VSPHERE_USER
+                        export TF_VAR_vsphere_password=$VSPHERE_PASS
+                        terraform apply -auto-approve
+                        '''
+                    }
                 }
             }
         }
@@ -70,12 +76,14 @@ pipeline {
                 expression { return params.DESTROY == true }
             }
             steps {
-                dir('terraform') {
-                    sh '''
-                    export TF_VAR_vsphere_user=$VSPHERE_USER
-                    export TF_VAR_vsphere_password=$VSPHERE_PASSWORD
-                    terraform destroy -auto-approve
-                    '''
+                withCredentials([usernamePassword(credentialsId: 'vsphere-creds', usernameVariable: 'VSPHERE_USER', passwordVariable: 'VSPHERE_PASS')]) {
+                    dir('terraform') {
+                        sh '''
+                        export TF_VAR_vsphere_user=$VSPHERE_USER
+                        export TF_VAR_vsphere_password=$VSPHERE_PASS
+                        terraform destroy -auto-approve
+                        '''
+                    }
                 }
             }
         }
