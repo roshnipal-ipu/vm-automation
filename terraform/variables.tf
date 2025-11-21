@@ -9,5 +9,5 @@ variable "network" {}
 variable "template_name" {}
 variable "disk_size" {
   description = "Disk size in GB"
-  default     = 100
+  default     = 10
 }

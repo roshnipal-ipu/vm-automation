@@ -81,12 +81,12 @@ resource "vsphere_virtual_machine" "vm" {
       }
 
       network_interface {
-        ipv4_address = "10.10.89.101"
+        ipv4_address = "10.10.89.104"
         ipv4_netmask = 24
       }
 
-      ipv4_gateway      = "10.79.10.254"
-      dns_server_list   = ["10.79.10.1", "10.79.10.2"]
+      ipv4_gateway      = "10.10.89.254"
+      dns_server_list   = ["10.10.79.1", "10.10.79.2"]
     }
   }
 }

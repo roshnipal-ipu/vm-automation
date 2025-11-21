@@ -1,4 +1,25 @@
+---
 - hosts: all
   become: yes
-  roles:
-    - base
+  tasks:
+    - name: Ensure system packages are up to date
+      yum:
+        name: "*"
+        state: latest
+
+    - name: Install basic tools
+      yum:
+        name:
+          - vim
+          - curl
+        state: present
+
+    - name: Set hostname
+      hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Enable and start SSH service
+      service:
+        name: sshd
+        state: started
+        enabled: yes
