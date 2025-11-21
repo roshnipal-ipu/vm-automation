@@ -7,4 +7,4 @@ cluster          = "ALECLU02"
 datastore        = "ale_gfm_clu2_01"
 network          = "ALE_MAIN|LEGACY|VL_89_Office-Server-II"
 template_name    = "RHEL 8.X Template - Elham Jahani - V1.1"
-disk_size        = 10
+disk_size        = 100
